@@ -1,0 +1,426 @@
+body {
+  margin: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 200px 1fr;
+  grid-template-areas:
+    "header header"
+    "sidebar main"
+    "footer footer";
+  height: 100vh;
+  background-color: #d2d2d2;
+}
+header {
+  grid-area: header;
+  background: #333;
+  color: white;
+  padding: 1rem;
+  text-align: center;
+}
+footer {
+  grid-area: footer;
+  background: #333;
+  color: white;
+  padding: 1rem;
+  height: calc(
+    0.15 * var(--header-height, 4rem)
+  ); /* Assuming header height is 4rem */
+}
+.sidebar {
+  display: block;
+  grid-area: sidebar;
+  background: #3066a7;
+  padding: 1rem;
+  flex: 1;
+  border: #ffffff;
+}
+.submenu {
+  /* border: 1px solid #ccc; */
+  border-radius: 5px;
+  /* padding: 10px; */
+  display: block;
+  margin-left: 20px;
+}
+.content {
+  grid-area: content;
+  padding: 1rem;
+}
+
+/* Add styles for the sidebar */
+nav {
+  background-color: #323334;
+  font: bold 1em times;
+  color: #ffffff;
+  opacity: 0.9;
+  padding: 1em;
+  border-radius: 10px;
+}
+nav ul {
+  list-style-type: none;
+  padding: 0;
+  color: #2c5760;
+}
+nav ul li {
+  margin: 1em 0;
+}
+nav ul li a {
+  text-decoration: none;
+  color: #000000;
+  color: rgb(159, 157, 157);
+  font: 1em times;
+  font-size: small;
+  font-family: Verdana, Geneva, Tahoma, sans-serif;
+}
+nav ul li a:hover {
+  border-radius: 5px; /* Add rounded corners on hover */
+  padding: 0px; /* Add padding on hover */
+  text-decoration: underline; /* Underline text on hover */
+  text-decoration-color: #fff200;
+  text-decoration-thickness: 5px;
+}
+nav ul li a:active,
+nav ul li a:focus {
+  border-radius: 5px;
+  padding: 0px;
+  text-decoration: underline;
+  text-decoration-color: #fff200;
+  text-decoration-thickness: 5px;
+}
+
+main {
+  flex: 1;
+  padding: 1em;
+}
+
+.beta-badge {
+  display: inline-block;
+  padding: 5px 10px;
+  background-color: #ffcc00;
+  color: #000;
+  font-weight: bold;
+  border-radius: 5px;
+}
+
+.status-ok {
+  /* text-align: center; */
+  background: white;
+  padding: 20px 40px;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background-color: #d4edd6;
+  color: #09a713;
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+.health {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px; /* Adds space between the divs */
+}
+
+.status-ok {
+  background-color: #28a745; /* Green background for status-ok */
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  flex: 1 1 200px; /* Adjust the width as needed */
+  box-sizing: border-box;
+}
+
+.status-down {
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  flex: 1 1 200px; /* Adjust the width as needed */
+  box-sizing: border-box;
+  background-color: #dc3545; /* Red background for status-down */
+}
+
+.status-error {
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  flex: 1 1 200px; /* Adjust the width as needed */
+  box-sizing: border-box;
+  background-color: #e87e15; /* orange background for status-error */
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"] {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button {
+  background-color: #578fca; /* Green background */
+  border: none;
+  color: white;
+  padding: 15px 32px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button:hover {
+  background-color: #025ad5; /* Darker green on hover */
+}
+
+button:active {
+  transform: scale(0.95);
+}
+
+button:disabled {
+  background-color: #cccccc; /* Grey background when disabled */
+  color: #666666; /* Grey text when disabled */
+}
+
+#health {
+  box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+  transition: transform 0.1s;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+table th,
+table td {
+  padding: 12px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+table th {
+  background-color: #444444;
+  color: white;
+}
+
+table tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+table tr:hover {
+  background-color: #ddd;
+}
+
+/* Processing animation */
+
+.processing {
+  font-size: 18px;
+  color: #000000;
+  animation: blink 1s step-start infinite;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes blinking {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+section {
+  font-family: Arial, Helvetica, sans-serif;
+  border: 2px solid #ccc;
+  padding: 10px;
+  border-radius: 10px;
+  background-color: #ffffff;
+}
+
+h3 {
+  font-weight: bold;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+#userName {
+  margin-right: 10px;
+  font-family: "Courier New", Courier, monospace;
+}
+
+#logoutButton {
+  background: none;
+  border: none;
+  color: #fff200;
+  /* text-decoration: underline; */
+  cursor: pointer;
+  font-family: cursive;
+  padding: 5px;
+  border: 1px solid gray;
+}
+
+hr {
+  border: 1px solid rgb(222, 222, 222);
+  margin: 20px 0;
+}
+
+/* Add styles for the blinking circle */
+#blinking-green-circle {
+  width: 20px;
+  height: 20px;
+  background-color: var(--blinking-circle-color, green);
+  border-radius: 50%;
+  animation: var(--blinking-circle-animation, blink 1s infinite);
+}
+
+#solid-blue-circle {
+  width: 20px;
+  height: 20px;
+  background-color: blue;
+  border-radius: 50%;
+}
+
+#solid-green-circle {
+  width: 20px;
+  height: 20px;
+  background-color: green;
+  border-radius: 50%;
+}
+
+#solid-red-circle {
+  width: 20px;
+  height: 20px;
+  background-color: red;
+  border-radius: 50%;
+}
+
+#creator {
+  position: absolute;
+  /* bottom: 10px; */
+  width: 100%;
+  text-align: center;
+  margin: 0;
+  bottom: 0;
+  color: rgb(155, 155, 155);
+  font-family: cursive;
+}
+
+#Linux label,
+#Windows label,
+#Esxi label {
+  margin-bottom: 5px;
+  display: inline-block;
+  width: 150px; /* Set a fixed width for the label */
+  font-weight: bold;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+#linux textarea,
+#Windows textarea,
+#Esxi textarea {
+  width: 100%;
+  height: 100px;
+  padding: 10px;
+  margin: 10px 0;
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+#Linux select,
+#Windows select,
+#Esxi select {
+  display: inline-block;
+  vertical-align: middle;
+  padding: 10px;
+  margin: 10px 0;
+  width: 200px; /* Adjust width to fit the text */
+  display: inline-block; /* Ensure the dropdown shrinks to fit content */
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  max-width: 300px; /* Optional: Set a maximum width for consistency */
+  margin: 0 auto; /* Centers the dropdowns */
+  box-sizing: border-box;
+  text-align-last: center; /* Ensures text is centered in dropdown */
+  font-family: Arial, Helvetica, sans-serif;
+  background: linear-gradient(to right, #99acc1, #040b13);
+  color: white;
+  appearance: none; /* Remove default dropdown arrow */
+}
+
+#Linux select:hover,
+#Windows select:hover,
+#Esxi select:hover {
+  border-color: #025ad5;
+}
+
+input[type="text"]:hover,
+input[type="password"]:hover,
+input[type="email"]:hover,
+input[type="number"]:hover {
+  border-color: #025ad5;
+  box-shadow: 0 0 5px rgba(2, 90, 213, 0.5);
+}
+
+#Linux select:focus,
+#Windows select:focus,
+#Esxi select:focus {
+  outline: none;
+  border-color: #025ad5;
+  box-shadow: 0 0 5px rgba(2, 90, 213, 0.5);
+}
+
+#startLinuxBuild,
+#startWindowsBuild,
+#startEsxiBuild {
+  background-color: #578fca; /* Green background */
+  border: none;
+  color: white;
+  padding: 15px 200px; /* Increased padding for a larger button */
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 18px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+#startLinuxBuild:hover,
+#startWindowsBuild:hover,
+#startEsxiBuild:hover {
+  background-color: #025ad5; /* Darker blue on hover */
+}
+
+#startLinuxBuild:active,
+#startWindowsBuild:active,
+#startEsxiBuild:active {
+  transform: scale(0.95);
+}
+
+#startLinuxBuild:disabled,
+#startWindowsBuild:disabled,
+#startEsxiBuild:disabled {
+  background-color: #cccccc; /* Grey background when disabled */
+  color: #666666; /* Grey text when disabled */
+}

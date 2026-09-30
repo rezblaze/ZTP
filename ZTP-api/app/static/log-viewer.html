@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Log Viewer</title>
+  <style>
+    body { font-family: monospace; background: #111; color: rgb(111, 255, 111); padding: 20px; }
+    #log { white-space: pre-wrap; overflow-y: auto; max-height: 80vh; }
+  </style>
+</head>
+<body>
+  <h2>Live Log</h2>
+  <div id="log">Loading...</div>
+  <button id="toggle-refresh">Stop Refresh</button>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const logUrl = params.get('url');
+    const logElement = document.getElementById('log');
+    const toggleButton = document.getElementById('toggle-refresh');
+
+    let refreshInterval;
+    let isRefreshing = true;
+
+    async function fetchLog() {
+      try {
+        const response = await fetch(logUrl, { cache: 'no-store' });
+        const text = await response.text();
+        logElement.textContent = text;
+        logElement.scrollTop = logElement.scrollHeight; // Auto-scroll to bottom
+      } catch (err) {
+        logElement.textContent = 'Error loading log: ' + err.message;
+      }
+    }
+
+    function startRefresh() {
+      fetchLog();
+      refreshInterval = setInterval(fetchLog, 5000); // Refresh every 5 seconds
+      toggleButton.textContent = 'Stop Refresh';
+      isRefreshing = true;
+    }
+
+    function stopRefresh() {
+      clearInterval(refreshInterval);
+      toggleButton.textContent = 'Start Refresh';
+      isRefreshing = false;
+    }
+
+    toggleButton.addEventListener('click', () => {
+      if (isRefreshing) {
+        stopRefresh();
+      } else {
+        startRefresh();
+      }
+    });
+
+    startRefresh(); // Start refreshing by default
+  </script>
+</body>
+</html>

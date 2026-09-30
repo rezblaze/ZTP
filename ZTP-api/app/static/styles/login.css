@@ -1,0 +1,49 @@
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 90vh;
+    background: linear-gradient(90deg, #3066a7, gray);
+    font-family: 'Arial', sans-serif;
+    
+}
+.loginForm {
+    height: 400px;
+    background: #cecdcd;
+    padding: 30px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    text-align: center;
+    width: 300px;
+}
+.loginForm h1 {
+    margin-bottom: 20px;
+    color: #026bb0;
+}
+.loginForm label {
+    display: block;
+    color: #000000;
+    font-size: 12px;
+}
+.loginForm input {
+    width: 80%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #9e9d9d;
+    border-bottom: 2px solid #000;
+    border-radius: 5px;
+}
+.loginForm button {
+    width: 80%;
+    padding: 10px;
+    background: #026bb0;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+.loginForm button:hover {
+    background: #003c71;
+}

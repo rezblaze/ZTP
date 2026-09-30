@@ -1,0 +1,594 @@
+<INSTALL>
+lang en_US
+<KEYBOARD>
+timezone America/Chicago
+rootpw --iscrypted $1$Cr77L9On$4ih6z6vnhn72P4j7LJvyo0
+reboot --eject
+text
+selinux --disabled
+firewall --disabled
+skipx
+firstboot --disable
+auth --enableshadow --passalgo=sha512
+<REPO_URL>
+bootloader --location=mbr --append="nofb quiet splash=quiet"
+%include /tmp/diskpart.cfg
+%packages --ignoremissing
+@base
+bind
+bind-chroot
+device-mapper-multipath
+chrony
+cpp
+deltarpm
+dmidecode
+expect
+ftp
+gcc
+glibc-devel
+glibc-headers
+iotop
+iptraf
+kernel-devel
+kernel-headers
+ksh
+libstdc++
+libstdc++-devel
+lm_sensors
+lsscsi
+mailx
+mutt
+net-snmp
+net-snmp-libs
+nfs-utils
+nscd
+nss-pam-ldapd
+ntp
+openldap-clients
+openmotif
+screen
+sg3_utils
+smartmontools
+strace
+sysfsutils
+sysstat
+system-config-kdump
+telnet
+vsftpd
+wget
+xinetd
+yum
+dhclient
+git
+net-tools
+lldpad
+redhat-lsb-core
+jq
+%end
+###
+### PRE KICKSTART SECTION
+###
+%pre --interpreter=/bin/bash --log=/var/log/kickstart-pre.log
+echo "*** Pre kickstart starting ***"
+# Initialize diskpart.cfg to avoid file not found error
+touch /tmp/diskpart.cfg
+chmod 644 /tmp/diskpart.cfg
+
+# Configuration variables
+IP="<IP>"
+NETMASK="<NETMASK>"
+GATEWAY="<GATEWAY>"
+CIDR="<CIDR>"
+VLAN="<VLAN>"
+RHEL_RELEASE="<OS_VER>"
+RHEL_VER=$(echo ${RHEL_RELEASE} | cut -d'.' -f1)
+HARDWARE="<HARDWARE>"
+if [[ -z ${HARDWARE} ]]; then
+    HARDWARE=$(dmidecode -s system-manufacturer | awk '{print tolower($0)}')
+fi
+echo "RHEL ${RHEL_VER} and ${RHEL_RELEASE}"
+
+load_rpm() {
+    echo "Installing racadm or ilorest binary from ISO"
+    cd /run/install/repo/prekickstart || {
+        echo " - WARN, Cannot access /run/install/repo/prekickstart"
+        ${LOG_TO_LOM} "ZTP:KS:WARNING: Cannot access /run/install/repo/prekickstart"
+        return 1
+    }
+    for i in $(ls -1 *.rpm 2>/dev/null); do
+        echo "Installing ${i} ..."
+        rpm -ivUh --nodeps ${i}
+        RPM_CHK=$(echo ${i} | sed 's/\.rpm$//')
+        rpm -q ${RPM_CHK}
+        if [[ $? != 0 ]]; then
+            echo " - WARN, ${i} failed to install"
+            ${LOG_TO_LOM} "ZTP:KS:WARNING: ${i} failed to install"
+            continue
+        else
+            echo " - PASS, ${HARDWARE} RPM installed"
+            if [[ ${HARDWARE} != "dell" ]]; then
+                LOG_TO_LOM='/usr/sbin/ilorest serverlogs --selectlog=IML -m'
+            else
+                LOG_TO_LOM='/opt/dell/srvadmin/sbin/racadm lclog worknote add -m'
+            fi
+        fi
+    done
+    ${LOG_TO_LOM} 'ZTP:KS:START============================================ZTP:KS:START' 2>/dev/null
+    return 0
+}
+
+remove_rootvg() {
+    echo "Removing rootvg"
+    vgchange -ay 2>/dev/null
+    VG=$(vgs --noheadings | grep rootvg | awk '{print $1}')
+    if [[ "${VG}" == "rootvg" ]]; then
+        PV=$(pvs --noheadings | grep rootvg | awk '{print $1}')
+        vgremove -f -y rootvg 2>/dev/null
+        pvremove -f -y ${PV} 2>/dev/null
+    fi
+    return 0
+}
+
+check_interface() {
+    local IFACE=$1
+    echo "Testing interface ${IFACE} ..."
+    ip link set ${IFACE} down 2>/dev/null
+    if [[ -z ${VLAN} ]]; then
+        echo "No VLAN configured"
+        ip addr add ${IP}/${CIDR} dev ${IFACE}
+        ip link set ${IFACE} up
+        ip route add default via ${GATEWAY}
+    else
+        echo "VLAN ${VLAN} configured"
+        local VLAN_IFACE="${IFACE}.${VLAN}"
+        ip link add link ${IFACE} name ${VLAN_IFACE} type vlan id ${VLAN}
+        ip link set ${VLAN_IFACE} up
+        ip addr add ${IP}/${CIDR} dev ${VLAN_IFACE}
+        ip link set ${IFACE} up
+        ip route add default via ${GATEWAY} dev ${VLAN_IFACE}
+    fi
+
+    test_gateway ${IFACE}
+    local GWY_STATUS=$?
+    if [[ ${GWY_STATUS} -ne 0 ]]; then
+        echo "Interface ${IFACE} is NOT working"
+        if [[ -z ${VLAN} ]]; then
+            ip addr del ${IP}/${CIDR} dev ${IFACE} 2>/dev/null
+            ip route del default via ${GATEWAY} 2>/dev/null
+        else
+            ip addr del ${IP}/${CIDR} dev ${VLAN_IFACE} 2>/dev/null
+            ip link set ${VLAN_IFACE} down 2>/dev/null
+            ip link delete ${VLAN_IFACE} 2>/dev/null
+            ip route del default via ${GATEWAY} 2>/dev/null
+        fi
+        return 1
+    fi
+    return 0
+}
+
+check_interface_bond() {
+    local IFACE=$1
+    local SISTER_IFACE=$2
+    echo "Testing bonding for ${IFACE} with sister ${SISTER_IFACE}"
+    if [[ -z "${IFACE}" ]]; then
+        echo " - WARN, No interface provided"
+        ${LOG_TO_LOM} "ZTP:KS:WARNING: No interface for bonding" 2>/dev/null
+        return 1
+    fi
+    ip link show ${IFACE} >/dev/null 2>&1 || {
+        echo " - WARN, Interface ${IFACE} does not exist"
+        ${LOG_TO_LOM} "ZTP:KS:WARNING: Interface ${IFACE} does not exist" 2>/dev/null
+        return 1
+    }
+
+    ip link set ${IFACE} down 2>/dev/null
+    if [[ -n ${SISTER_IFACE} ]]; then
+        ip link set ${SISTER_IFACE} down 2>/dev/null
+        echo "Attempting LACP bond"
+        modprobe bonding 2>/dev/null
+        if lsmod | grep -q bonding; then
+            ip link add bond0 type bond mode 802.3ad miimon=100 lacp_rate=fast 2>/dev/null
+            ip link set ${IFACE} master bond0 2>/dev/null && ip link set ${SISTER_IFACE} master bond0 2>/dev/null
+            if ip link set bond0 up 2>/dev/null; then
+                ip addr add ${IP}/${CIDR} dev bond0
+                ip route add default via ${GATEWAY} dev bond0
+            else
+                echo " - WARN, Failed to bring up bond0, falling back"
+                ${LOG_TO_LOM} "ZTP:KS:WARNING: Failed bond0, using ${IFACE}" 2>/dev/null
+                ip link delete bond0 2>/dev/null
+                SISTER_IFACE=""
+            fi
+        else
+            echo " - WARN, Bonding module not loaded, falling back"
+            ${LOG_TO_LOM} "ZTP:KS:WARNING: Bonding module not loaded" 2>/dev/null
+            SISTER_IFACE=""
+        fi
+    fi
+
+    if [[ -z ${SISTER_IFACE} ]]; then
+        echo "Using single interface ${IFACE}"
+        ip addr add ${IP}/${CIDR} dev ${IFACE} || return 1
+        ip link set ${IFACE} up || return 1
+        ip route add default via ${GATEWAY} dev ${IFACE} || return 1
+    fi
+
+    local DEV=${IFACE}
+    [[ -n ${SISTER_IFACE} ]] && DEV="bond0"
+    ping -c 3 ${GATEWAY} >/dev/null
+    if [[ $? -ne 0 ]]; then
+        echo "Interface ${DEV} is NOT working"
+        ${LOG_TO_LOM} "ZTP:KS:WARNING: Interface ${DEV} failed" 2>/dev/null
+        if [[ -n ${SISTER_IFACE} ]]; then
+            ip addr del ${IP}/${CIDR} dev bond0 2>/dev/null
+            ip link set bond0 down 2>/dev/null
+            ip link delete bond0 2>/dev/null
+        else
+            ip addr del ${IP}/${CIDR} dev ${IFACE} 2>/dev/null
+        fi
+        ip route del default via ${GATEWAY} 2>/dev/null
+        return 1
+    fi
+    echo " - PASS, Connectivity on ${DEV}"
+    ${LOG_TO_LOM} "ZTP:KS:INFO: Network check PASS for ${DEV}" 2>/dev/null
+    return 0
+}
+
+test_gateway() {
+    local IFACE=$1
+    echo "Testing default gateway for ${IFACE}"
+    ping -c 3 ${GATEWAY} >/dev/null
+    local PING_GWY_STATUS=$?
+    if [[ ${PING_GWY_STATUS} -eq 0 ]]; then
+        echo " - PASS, Gateway reachable"
+        ${LOG_TO_LOM} 'ZTP:KS:Pre_primary_network_check_PASS' 2>/dev/null
+        return 0
+    else
+        echo " - FAIL, Network test FAILED for ${IFACE}"
+        ${LOG_TO_LOM} "ZTP:KS:WARNING: Network test FAILED for ${IFACE}" 2>/dev/null
+        return 1
+    fi
+}
+
+find_sister_nic() {
+    local primary_IFACE=$1
+    local primary_MAC=$(ip -o link show ${primary_IFACE} 2>/dev/null | awk '{print $17}' | tr '[:upper:]' '[:lower:]')
+    if [[ -z "${primary_MAC}" ]]; then
+        echo ""
+        return
+    fi
+    local prefix=$(echo ${primary_MAC} | cut -d':' -f1-5)
+    local sister_IFACE=$(ip -o link show | grep -i "link/ether ${prefix}" | grep -iv "${primary_MAC}" | awk '{print $2}' | cut -d':' -f1 | head -n1)
+    if [[ -n ${sister_IFACE} ]]; then
+        ip link set ${sister_IFACE} up 2>/dev/null
+        echo ${sister_IFACE}
+    else
+        echo ""
+    fi
+}
+
+find_nic() {
+    echo "Finding network interface"
+    IFACE=$(ip -br link | awk '{IGNORECASE=1}/<MAC>/{print $1}' | sort -u)
+    if [[ -z ${IFACE} ]]; then
+        echo " - WARN, Unable to find interface with MAC <MAC>"
+        ${LOG_TO_LOM} 'ZTP:KS:WARNING: Primary interface with MAC <MAC> not found' 2>/dev/null
+        return 1
+    fi
+
+    if [[ "${VLAN}" == "3020" ]]; then
+        check_interface ${IFACE}
+        local CHECK_STATUS=$?
+        if [[ ${CHECK_STATUS} -eq 0 ]]; then
+            echo "Configuring interface ${IFACE} with VLAN ${VLAN}"
+            cat << EOF > /tmp/network-ks.cfg
+network --device=${IFACE} --bootproto static --ip=${IP} --netmask=${NETMASK} --gateway=${GATEWAY} --nameserver=<DNS1>,<DNS2> --hostname=<SERVERNAME> --vlanid='${VLAN}' --activate
+EOF
+        else
+            NICS=$(ls /sys/class/net | grep -Ev "lo|${IFACE}")
+            ${LOG_TO_LOM} "ZTP:KS:WARNING: Primary ${IFACE} failed. Checking ${NICS}" 2>/dev/null
+            WORKING_IFACE_FOUND=false
+            for i in ${NICS}; do
+                echo "Checking interface ${i}"
+                ${LOG_TO_LOM} "ZTP:KS:INFO: Checking interface ${i}" 2>/dev/null
+                sleep 5
+                check_interface ${i}
+                if [[ $? -eq 0 ]]; then
+                    ${LOG_TO_LOM} "ZTP:KS:INFO: Interface ${i} is working" 2>/dev/null
+                    cat << EOF > /tmp/network-ks.cfg
+network --device=${i} --bootproto static --ip=${IP} --netmask=${NETMASK} --gateway=${GATEWAY} --nameserver=<DNS1>,<DNS2> --hostname=<SERVERNAME> --vlanid='${VLAN}' --activate
+EOF
+                    WORKING_IFACE_FOUND=true
+                    break
+                fi
+            done
+            if [[ ${WORKING_IFACE_FOUND} == false ]]; then
+                ${LOG_TO_LOM} 'ZTP:KS:ERROR: No working interface found' 2>/dev/null
+                return 1
+            fi
+        fi
+    else
+        sister_IFACE=$(find_sister_nic ${IFACE})
+        if [[ -n ${sister_IFACE} ]]; then
+            echo "Found sister NIC ${sister_IFACE} for ${IFACE}"
+            ${LOG_TO_LOM} "ZTP:KS:INFO: Found sister NIC ${sister_IFACE}" 2>/dev/null
+            check_interface_bond ${IFACE} ${sister_IFACE}
+            if [[ $? -eq 0 ]]; then
+                echo "Configuring LACP bond with ${IFACE} and ${sister_IFACE}"
+                cat << EOF > /tmp/network-ks.cfg
+network --device=bond0 --bootproto static --ip=${IP} --netmask=${NETMASK} --gateway=${GATEWAY} --nameserver=<DNS1>,<DNS2> --hostname=<SERVERNAME> --bondslaves=${IFACE},${sister_IFACE} --bondopts="mode=802.3ad,miimon=100,lacp_rate=fast" --activate
+EOF
+            else
+                echo "LACP bond failed, using single interface ${IFACE}"
+                check_interface_bond ${IFACE} ""
+                if [[ $? -eq 0 ]]; then
+                    cat << EOF > /tmp/network-ks.cfg
+network --device=${IFACE} --bootproto static --ip=${IP} --netmask=${NETMASK} --gateway=${GATEWAY} --nameserver=<DNS1>,<DNS2> --hostname=<SERVERNAME> --activate
+EOF
+                else
+                    ${LOG_TO_LOM} 'ZTP:KS:ERROR: Bonding and single interface failed' 2>/dev/null
+                    return 1
+                fi
+            fi
+        else
+            echo "No sister NIC found, using ${IFACE}"
+            ${LOG_TO_LOM} "ZTP:KS:INFO: No sister NIC, using ${IFACE}" 2>/dev/null
+            check_interface_bond ${IFACE} ""
+            if [[ $? -eq 0 ]]; then
+                cat << EOF > /tmp/network-ks.cfg
+network --device=${IFACE} --bootproto static --ip=${IP} --netmask=${NETMASK} --gateway=${GATEWAY} --nameserver=<DNS1>,<DNS2> --hostname=<SERVERNAME> --activate
+EOF
+            else
+                NICS=$(ls /sys/class/net | grep -Ev "lo|${IFACE}")
+                ${LOG_TO_LOM} "ZTP:KS:WARNING: Primary ${IFACE} failed. Checking ${NICS}" 2>/dev/null
+                WORKING_IFACE_FOUND=false
+                for i in ${NICS}; do
+                    echo "Checking interface ${i}"
+                    ${LOG_TO_LOM} "ZTP:KS:INFO: Checking interface ${i}" 2>/dev/null
+                    sleep 5
+                    check_interface_bond ${i} ""
+                    if [[ $? -eq 0 ]]; then
+                        ${LOG_TO_LOM} "ZTP:KS:INFO: Interface ${i} is working" 2>/dev/null
+                        cat << EOF > /tmp/network-ks.cfg
+network --device=${i} --bootproto static --ip=${IP} --netmask=${NETMASK} --gateway=${GATEWAY} --nameserver=<DNS1>,<DNS2> --hostname=<SERVERNAME> --activate
+EOF
+                        WORKING_IFACE_FOUND=true
+                        break
+                    fi
+                done
+                if [[ ${WORKING_IFACE_FOUND} == false ]]; then
+                    ${LOG_TO_LOM} 'ZTP:KS:ERROR: No working interface found' 2>/dev/null
+                    return 1
+                fi
+            fi
+        fi
+    fi
+    return 0
+}
+
+### MAIN ###
+echo "Starting main section"
+load_rpm || echo "WARNING: load_rpm failed, continuing"
+remove_rootvg
+echo "VLAN=${VLAN}"
+find_nic || echo "WARNING: find_nic failed, continuing disk setup"
+
+# Disk configuration
+LDISK_ID=""
+if [[ ${HARDWARE} != "dell" ]]; then
+    if [[ -z ${LDISK_ID} ]]; then
+        LDISK_ID=$(/usr/sbin/ilorest serverlogs --selectlog=IML 2>/dev/null | awk -F':' '/LD_ID/{print $NF}' | tr -d '[:space:]')
+    fi
+    echo "Setting up boot drive with disk ID=${LDISK_ID}"
+fi
+
+${LOG_TO_LOM} 'ZTP:KS:INFO: Setting up boot drive and partition table' 2>/dev/null
+if [[ -z "${LDISK_ID}" ]]; then
+    ROOTVGDISK=$(lsblk -b -d -o NAME,SIZE,TYPE|grep ^sd|sort -k2 -n|head -n1 | awk '{print $1}')
+    MSG="ZTP: Using ${ROOTVGDISK} for OS disk from lsblk"
+    ${LOG_TO_LOM} "${MSG}" 2>/dev/null
+else
+    ROOTVGDISK=$(lsblk -lF /dev/disk/by-id/ | grep -i "${LDISK_ID}" | awk -F'/' '/wwn-/{print $NF}' | head -n1)
+    MSG="ZTP:KS:INFO: Using ID ${LDISK_ID} disk name ${ROOTVGDISK} for OS disk from ILO"
+    ${LOG_TO_LOM} "${MSG}" 2>/dev/null
+fi
+
+if [[ -z "${ROOTVGDISK}" ]]; then
+    echo "WARNING: No disk found, defaulting to sda"
+    ROOTVGDISK="sda"
+    ${LOG_TO_LOM} "ZTP:KS:WARNING: No disk found, defaulting to sda" 2>/dev/null
+fi
+
+echo "zerombr" >> /tmp/diskpart.cfg
+echo "clearpart --drives=${ROOTVGDISK} --all --initlabel" >> /tmp/diskpart.cfg
+echo "part /boot --fstype xfs --size=1024 --ondisk=${ROOTVGDISK}" >> /tmp/diskpart.cfg
+if [[ -d /sys/firmware/efi ]]; then
+    echo "part /boot/efi --fstype=efi --size=100 --ondisk=${ROOTVGDISK}" >> /tmp/diskpart.cfg
+fi
+echo "part pv.2 --fstype xfs --size=1024 --grow --ondisk=${ROOTVGDISK}" >> /tmp/diskpart.cfg
+echo "volgroup rootvg --pesize=32768 pv.2" >> /tmp/diskpart.cfg
+echo "logvol / --fstype=xfs --name=lv_root --vgname=rootvg --size=10240" >> /tmp/diskpart.cfg
+echo "logvol /home --fstype=xfs --name=lv_home --vgname=rootvg --size=1024" >> /tmp/diskpart.cfg
+echo "logvol /opt --fstype=xfs --name=lv_opt --vgname=rootvg --size=2048" >> /tmp/diskpart.cfg
+echo "logvol /var --fstype=xfs --name=lv_var --vgname=rootvg --size=8192" >> /tmp/diskpart.cfg
+echo "logvol /var/log --fstype=xfs --name=lv_var_log --vgname=rootvg --size=20480" >> /tmp/diskpart.cfg
+echo "logvol /var/log/audit --fstype=xfs --name=lv_var_log_audit --vgname=rootvg --size=512" >> /tmp/diskpart.cfg
+echo "logvol /var/opt/perf --fstype=xfs --name=lv_var_opt_perf --vgname=rootvg --size=2048" >> /tmp/diskpart.cfg
+echo "logvol /var/core --fstype=xfs --name=lv_var_core --vgname=rootvg --size=1024" >> /tmp/diskpart.cfg
+echo "logvol /var/crash --fstype=xfs --name=lv_var_crash --vgname=rootvg --size=3072" >> /tmp/diskpart.cfg
+echo "logvol /var/chef --fstype=xfs --name=lv_var_chef --vgname=rootvg --size=1024" >> /tmp/diskpart.cfg
+echo "logvol /tmp --fstype=xfs --name=lv_tmp --vgname=rootvg --size=4096" >> /tmp/diskpart.cfg
+echo "logvol /monitor --fstype=xfs --name=lv_monitor --vgname=rootvg --size=10240" >> /tmp/diskpart.cfg
+cat /tmp/diskpart.cfg
+${LOG_TO_LOM} "ZTP:KS:INFO: Wrote /tmp/diskpart.cfg" 2>/dev/null
+%end
+%include /tmp/network-ks.cfg
+###
+### POST KICKSTART SECTION
+###
+%post --nochroot
+echo "Starting anaconda postinstall"
+cp -rvf /var/log/kickstart-pre.log /mnt/sysimage/var/log/
+cp -rvf /var/log/kickstart-python-pre.log /mnt/sysimage/var/log/
+cp -rvf /tmp/diskpart.cfg /mnt/sysimage/var/log/
+cp -va /etc/resolv.conf /mnt/sysimage/etc/resolv.conf
+cp -va /run/install/repo/build.json /mnt/sysimage/root/
+mkdir -p /mnt/sysimage/root/rpms/
+cp -va /run/install/repo/prekickstart/*.rpm /mnt/sysimage/root/rpms/
+mkdir -p /mnt/sysimage/root/postbuild
+cp -va /run/install/repo/prekickstart/*.sh /mnt/sysimage/root/postbuild/
+%end
+%post --interpreter=/bin/bash --log=/var/log/kickstart-post.log
+echo "Starting postbuild configuration"
+HARDWARE="<HARDWARE>"
+if [[ -z ${HARDWARE} ]]; then
+    HARDWARE=$(dmidecode -s system-manufacturer | awk '{print tolower($0)}')
+fi
+if [[ ${HARDWARE} != "dell" ]]; then
+    LOG_TO_LOM='/usr/sbin/ilorest serverlogs --selectlog=IML -m'
+else
+    LOG_TO_LOM='/opt/dell/srvadmin/sbin/racadm lclog worknote add -m'
+fi
+
+for file in $(ls /root/rpms/*.rpm 2>/dev/null); do
+    rpm -ivh --nodeps ${file}
+done
+${LOG_TO_LOM} 'ZTP:KS:INFO: Postkickstart completed' 2>/dev/null
+${LOG_TO_LOM} 'ZTP:KS:END============================================ZTP:KS:END' 2>/dev/null
+sync
+echo "End post kickstart"
+%end
+### POST BONDING CONFIGURATION
+%post --interpreter=/bin/bash --log=/var/log/kickstart-post-bonding.log
+echo "Starting bonding configuration"
+HARDWARE="<HARDWARE>"
+if [[ -z ${HARDWARE} ]]; then
+    HARDWARE=$(dmidecode -s system-manufacturer | awk '{print tolower($0)}')
+fi
+if [[ ${HARDWARE} != "dell" ]]; then
+    LOG_TO_LOM='/usr/sbin/ilorest serverlogs --selectlog=IML -m'
+else
+    LOG_TO_LOM='/opt/dell/srvadmin/sbin/racadm lclog worknote add -m'
+fi
+
+IP="<IP>"
+NETMASK="<NETMASK>"
+GATEWAY="<GATEWAY>"
+CIDR="<CIDR>"
+VLAN="<VLAN>"
+DNS1="<DNS1>"
+DNS2="<DNS2>"
+primary_IFACE=$(ip -br link | awk '{IGNORECASE=1}/<MAC>/{print $1}' | sort -u)
+if [[ -z ${primary_IFACE} ]]; then
+    primary_IFACE=$(ls /sys/class/net | grep -E '^(eth|en)' | grep -v 'lo' | head -n1)
+    if [[ -z ${primary_IFACE} ]]; then
+        echo " - FAIL, No network interface found"
+        ${LOG_TO_LOM} 'ZTP:KS:ERROR: No network interface found' 2>/dev/null
+        exit 1
+    fi
+    echo " - WARN, No interface with MAC <MAC>, using ${primary_IFACE}"
+    ${LOG_TO_LOM} "ZTP:KS:WARNING: Using ${primary_IFACE}" 2>/dev/null
+fi
+
+sister_IFACE=""
+if [[ "${VLAN}" != "3020" ]]; then
+    primary_MAC=$(ip -o link show ${primary_IFACE} 2>/dev/null | awk '{print $17}' | tr '[:upper:]' '[:lower:]')
+    if [[ -n "${primary_MAC}" ]]; then
+        prefix=$(echo ${primary_MAC} | cut -d':' -f1-5)
+        sister_IFACE=$(ip -o link show | grep -i "link/ether ${prefix}" | grep -iv "${primary_MAC}" | awk '{print $2}' | cut -d':' -f1 | head -n1)
+    fi
+fi
+
+if [[ -n ${sister_IFACE} && "${VLAN}" != "3020" ]]; then
+    echo "Configuring LACP bond with ${primary_IFACE} and ${sister_IFACE}"
+    ${LOG_TO_LOM} "ZTP:KS:INFO: Configuring LACP bond" 2>/dev/null
+    nmcli connection add type bond con-name bond0 ifname bond0 mode 802.3ad
+    nmcli connection modify bond0 bond.options "mode=802.3ad,miimon=100,lacp_rate=fast"
+    nmcli connection add type ethernet con-name ${primary_IFACE} ifname ${primary_IFACE} master bond0
+    nmcli connection add type ethernet con-name ${sister_IFACE} ifname ${sister_IFACE} master bond0
+    nmcli connection modify bond0 ipv4.addresses ${IP}/${CIDR}
+    nmcli connection modify bond0 ipv4.gateway ${GATEWAY}
+    nmcli connection modify bond0 ipv4.dns ${DNS1},${DNS2}
+    nmcli connection modify bond0 ipv4.method manual
+    nmcli connection up bond0
+    if [[ $? -eq 0 ]]; then
+        echo " - PASS, LACP bond configured"
+        ${LOG_TO_LOM} "ZTP:KS:INFO: LACP bond configured" 2>/dev/null
+    else
+        echo " - WARN, LACP bond failed, falling back"
+        ${LOG_TO_LOM} "ZTP:KS:WARNING: LACP bond failed" 2>/dev/null
+        nmcli connection delete bond0 ${primary_IFACE} ${sister_IFACE} 2>/dev/null
+        nmcli connection add type ethernet con-name ${primary_IFACE} ifname ${primary_IFACE}
+        nmcli connection modify ${primary_IFACE} ipv4.addresses ${IP}/${CIDR}
+        nmcli connection modify ${primary_IFACE} ipv4.gateway ${GATEWAY}
+        nmcli connection modify ${primary_IFACE} ipv4.dns ${DNS1},${DNS2}
+        nmcli connection modify ${primary_IFACE} ipv4.method manual
+        nmcli connection up ${primary_IFACE}
+        if [[ $? -eq 0 ]]; then
+            echo " - PASS, Fallback to ${primary_IFACE}"
+            ${LOG_TO_LOM} "ZTP:KS:INFO: Fallback to ${primary_IFACE}" 2>/dev/null
+        else
+            echo " - FAIL, Fallback failed"
+            ${LOG_TO_LOM} "ZTP:KS:ERROR: Fallback failed" 2>/dev/null
+        fi
+    fi
+else
+    echo "Configuring interface ${primary_IFACE}"
+    ${LOG_TO_LOM} "ZTP:KS:INFO: Configuring ${primary_IFACE}" 2>/dev/null}
+    if [[ "${VLAN}" == "3020" ]]; then
+        nmcli connection add type vlan con-name ${primary_IFACE} .3020 ifname ${primary_IFACE} .3020 dev ${primary_IFACE} ${id}
+ id 3020
+        nmcli connection modify ${primary_IFACE} .3020 ipv4.addresses $ ${IP}/$ ${CIDR}
+        nmcli connection modify ${primary_IFACE} .3020 ipv4.gateway $ ${GATEWAY}
+        nmcli connection modify ${primary_IFACE} .3020 ipv4.dns $ ${DNS1}
+        ${DNS2}
+        nmcli connection modify ${primary_IFACE} .3020 ipv4.method manual
+        nmcli connection up ${primary_IFACE} .3020
+    else
+        nmcli connection add type ethernet con-name ${primary_IFACE} ifname ${primary_IFACE}
+        nmcli connection modify ${primary_IFACE} ${ipv4.addresses} ${IP}/$ ${CIDR}
+        nmcli connection modify ${primary_IFACE} ${ipv4.gateway} ${GATEWAY}
+        nmcli connection modify ${primary_IFACE} ipv4.dns ${DNS1} ,${DNS2}
+        nmcli connection modify ${primary_IFACE} ${ipv4.method} manual
+        nmcli connection up ${primary_IFACE}
+    fi
+    if [[ $? -eq 0 ]]; then
+        echo " - PASS, Interface configured"
+        ${LOG_TO_LOM} "ZTP:KS:INFO: Interface ${primary_IFACE} configured" 2>/dev/null
+    else
+        echo " - FAIL, Interface configuration failed"
+        ${LOG_TO_LOM} "ZTP:KS:ERROR: Interface ${primary_IFACE} failed" 2>/dev/null
+    fi
+fi
+
+${LOG_TO_LOM} "ZTP:KS:INFO: Bonding configuration completed" 2>/dev/null
+sync
+echo "End bonding configuration"
+%end
+### post section 2/2
+%post --interpreter=/bin/bash --log=/var/log/kickstart-post.log 
+echo "STARTING POSTBUILD"
+HARDWARE="<HARDWARE>"
+if [[ -z ${HARDWARE} ]]; then
+    HARDWARE=$(dmidecode -s system-manufacturer|awk '{print tolower($0)}')
+fi
+if [[ ${HARDWARE} != "dell" ]]; then
+    LOG_TO_LOM='/usr/sbin/ilorest serverlogs --selectlog=IML -m'
+else    
+    LOG_TO_LOM='/opt/dell/srvadmin/sbin/racadm lclog worknote add -m'
+fi
+    # install rpm
+for file in $(ls /root/rpms/*.rpm); do
+    rpm -ivh --nodeps ${file}
+done
+${LOG_TO_LOM} 'ZTP:KS:INFO: Creating /root/BUILD_ME trigger'
+#/bin/touch /root/BUILD_ME
+${LOG_TO_LOM} 'ZTP:KS:INFO: Creating rc.local'
+#cat /root/postbuild/firstboot.sh >> /etc/rc.d/rc.local
+#chmod +x /etc/rc.d/rc.local
+${LOG_TO_LOM} 'ZTP:KS:Postkickstart_completed'
+${LOG_TO_LOM} 'ZTP:KS:END==================DMB==========================ZTP:KS:END'
+sync
+sync
+sync
+echo "End post kickstart"
+%end

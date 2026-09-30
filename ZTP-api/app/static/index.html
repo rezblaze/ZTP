@@ -1,0 +1,456 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>BMI API User Interface</title>
+    <link rel="icon" type="image/x-icon" href="/static/images/favicon.ico">
+    <link rel="stylesheet" href="/static/styles/index.css?v=1.25" />
+</head>
+<body>
+    <header id="header">
+        <div style="display: flex">
+            <a href="#" onclick="showSection('content')">
+                <img src="/static/images/favicon-32x32.png" alt="favicon" style="width: 32px; height: 32px; vertical-align: middle;"> 
+            </a> 
+            <span style="margin-left: 20px; margin-top: 5px; font-family: 'Courier New', Courier, monospace;">BMI User Interface</span>
+            <div style="margin-left: auto; display: flex; align-items: center;font-family: 'Courier New', Courier, monospace;"">
+                <span id="userName" ></span>
+                <button id="logoutButton" href="#" onclick="logout()" >Logout</button>
+                <button id="loginButton" href="#" onclick="login()" >login</button>
+            </div>
+        </div>
+    </header>
+    <div class="sidebar">
+        <nav>
+            <ul>
+                <li>
+                    <a href="#" onclick="toggleSubmenuBmo(event); showSection('BMBuilds')">BMI Build Services</a>
+                    <ul class="submenu">
+                        <li><a href="#" onclick="showSection('Linux')">Linux Build</a></li>
+                        <li><a href="#" onclick="showSection('Windows')">Windows Build</a></li>
+                        <li><a href="#" onclick="showSection('Esxi')">ESXi Build</a></li>
+                        <li><a href="#" onclick="showSection('baselinehpspp')">Baseline HPE SPP</a></li>
+                    </ul>
+                </li>
+                <li>
+                    <a href="#" onclick="showSection('myrequests')">My Build Requests</a>
+                </li>
+                <li>
+                    <a href="#" onclick="toggleSubmenuBmo(event); showSection('BMOps')">BMOps Services</a>
+                    <ul class="submenu">
+                        <li><a href="#" onclick="showSection('eskm')">ESKM</a></li>
+                        <li><a href="#" onclick="showSection('adminlo')">AdminLO</a></li>
+                        <li><a href="#" onclick="showSection('esxiiso')">ESXi ISO</a></li>
+                    </ul>
+                </li>
+                <li>
+                    <a id="bmo-link" href="#" onclick="showSection('networkdataForm')">Data Services</a>
+                </li>
+                <li>
+                    <a href="#" id="idAdminServices" onclick="showSection('adminservicesForm')">Admin Services</a>
+                </li>
+                <li><a href="#" onclick="showSection('contactUs')">Contact Us</a></li>
+            </ul>
+        </nav>
+    </div>
+    <main>
+        <section id="content">
+            <h1>Welcome to the BMI User Interface <span class="beta-badge">Beta</span></h1>
+            <p>This is a simple user interface for the BMI API endpoints.</p>
+            <p>Features and functionality are subject to change without notifications.</p>
+            <p>Contact Us with any questions!</p>
+        </section>
+        
+        <section id="myrequests" style="display: none;">
+            <h2>My Requests</h2>
+            <p>Click on the button to get the requests you have made today and past. Page will not update itself so repress it to update.</p>
+            <button type="button" onclick="myrequests(0)">Today</button>
+            <button type="button" onclick="myrequests(7)">Past</button>
+            <hr>
+            <article id="myrequestsOutput"></article>
+        </section>
+
+        <section id="BMBuilds" style="display: none;">
+            <h1>BMI Build Services</h1>
+            <p>Use the sidebar to navigate to the desired service.</p>
+        </section>
+
+        <section id="Linux" style="display: none;">
+                <div style="display: flex; justify-content: space-between;">
+                    <div style="width: 50%; padding-right: 10px;">
+                        <!-- <h3>Left Section</h3> -->
+                        <h2>Linux Build Services</h2>
+                        <p>Enter the one host or multiple hosts names (comma separated) to start the Linux build.</p>
+                        <p>You can check the status of the build using the "My Build Requests" section.</p>
+                        <label for="host">Host or Hosts:</label>
+                        <input type="text" id="host_linux" name="host" placeholder="Enter FQDN names (required)" value="abc.example.com" style="width: 50%;" required></input>
+                        <br><br>
+                        <label for="os">OS:</label>
+                        <select id="os_linux" name="os" required style="width: auto;">
+                            <option value="" disabled selected>Select OS (required)</option>
+                            <option value="rhel-9.6">RHEL 9.6</option>
+                            <option value="rocky-9.6">Rocky 9.6</option>
+                            <option value="rhel-8.10">RHEL 8.10</option>
+                            <option value="rocky-8.10">Rocky 8.10</option>
+                        </select>
+                        <br><br>
+                        <label for="role">Role:</label>
+                        <select id="role_linux" name="attributes.role" required style="width: auto;">
+                            <option value="base" selected>Base</option>
+                            <option value="anthos">Anthos</option>
+                            <option value="hcc">HCC</option>
+                            <option value="splunk">Splunk</option>
+                            <option value="bdpaas">BDPaaS</option>
+                            <option value="emb">EMB</option>
+                            <option value="pep-ece">PEP-ECE</option>
+                            <option value="shop_admin">Shop Admin</option>
+                        </select>
+                        <br><br>
+                        <label for="data_raid">Data RAID:</label>
+                        <select id="data_raid_linux" name="attributes.data_raid" style="width: auto;">
+                            <option value="" selected>""</option>
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="10">10</option>
+                        </select>
+                        <br><br>
+                        <label for="deploy_only_linux">Deploy Only:</label>
+                            <input type="radio" id="deploy_only_false_linux" name="deploy_only_linux" value="false" checked>
+                            <label for="deploy_only_false">False</label>
+                            <input type="radio" id="deploy_only_true_linux" name="deploy_only_linux" value="true">
+                            <label for="deploy_only_true">True</label>
+                        <br><br>
+                        <label for="override">Override:</label>
+                        <input type="checkbox" id="overrideCheckbox" name="overrideCheckbox" onclick="toggleOverride()">
+                        <br><br>
+                        <script>
+                            function toggleOverride() {
+                                const overrideYesBlock = document.getElementById('overrideYesBlock');
+                                overrideYesBlock.style.display = document.getElementById('overrideCheckbox').checked ? 'block' : 'none';
+                            }
+                        </script>
+                        <div id="overrideYesBlock" style="display: block">
+                            <select id="overrideKey" name="overrideKey" style="width: auto;" required >
+                                <option value="" disabled selected>Select Override Key</option>
+                                <option value="mac">MAC</option>
+                                <option value="netmask">Netmask</option>
+                                <option value="gateway">Gateway</option>
+                                <option value="vlan">VLAN</option>
+                            </select>
+                            <input type="text" id="overrideValue" name="overrideValue" placeholder="Enter value to override" style="width: 200px;" required>
+                            <button type="button" id="overrideaddbutton" onclick="addOverride()" style="width: 15%; height: 80%;">Add</button>
+                        </div>
+                        <button id="startLinuxBuild" type="button" onclick="startLinuxBuild()">Start Build</button>
+                    </div>
+                    <div style="width: 50%; padding-left: 10px;">
+                        <!-- <h3>Right Section</h3> -->
+                        <h2>Build Payload:</h2>
+                        <textarea id="jsonOutput_linux" class="json-output" readonly style="
+                        width: 80%;
+                        height: 80%;
+                        font-weight: bold;
+                        font-family: 'PT Mono', monospace;
+                        border: 1px solid #ccc;
+                        border-radius: 5px;
+                        color: #333;
+                        background-color: #f9f9f9;
+                        padding: 10px;
+                        overflow: auto;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    "></textarea>
+                    </div>
+                </div>
+            <hr></hr>
+            <article id="linuxOutput"></article>
+        </section>
+
+        <section id="Windows" style="display: none;">
+            <div style="display: flex; justify-content: space-between;">
+                <div style="width: 50%; padding-right: 10px;">
+                    <!-- <h3>Left Section</h3> -->
+                    <h2>Windows Build Services</h2>
+                    <p>Enter the one host or multiple hosts names (comma separated) to start the Windows build.</p>
+                    <p>You can check the status of the build using the "My Build Requests" section.</p>
+                    <label for="host">Host or Hosts:</label>
+                    <input type="text" id="host_windows" name="host" placeholder="Enter FQDN names (required)" value="abc.example.com" style="width: 50%;" required></input>
+                    <br><br>
+                    <label for="os">OS:</label>
+                    <select id="os_windows" name="os" required style="width: auto;">
+                        <option value="" disabled selected>Select OS (required)</option>
+                        <option value="win2019">win2019</option>
+                        <option value="win2022">win2022</option>
+                        <option value="win2022core">win2022core</option>
+                    </select>
+                    <br><br>
+                    <label for="environment">Environment:</label>
+                    <select id="environment_windows" name="environment" required style="width: auto;">
+                        <option value="" disabled selected>Select Environment (required)</option>
+                        <option value="prod">Production</option>
+                        <option value="stage">Stage</option>
+                        <option value="test">Test</option>
+                        <option value="dev">Development</option>
+                    </select>
+                    <br><br>
+                    <label for="computerdomain">Computer Domain:</label>
+                    <input type="text" id="computerdomain_windows" name="computerdomain" placeholder="Enter Computer Domain" style="width: 50%;" required></input>
+                    <br><br>
+                    <label for="chef_windows">Chef:</label>
+                    <input type="radio" id="chef_true_windows" name="chef_windows" value="true" checked>
+                    <label for="chef_true">True</label>
+                    <input type="radio" id="chef_false_windows" name="chef_windows" value="false">
+                    <label for="chef_false">False</label>
+                    <br><br>
+                    <label for="extra_attr">Extra Attr:</label>
+                    <input type="checkbox" id="extraattrCheckbox" name="extraattrCheckbox" onclick="toggleExtraattr()">
+                    <br><br>
+                    <script>
+                        function toggleExtraattr() {
+                            const extraAttrBlock = document.getElementById('extraAttrBlock');
+                            extraAttrBlock.style.display = document.getElementById('extraattrCheckbox').checked ? 'block' : 'none';
+                        }
+                    </script>
+                    <div id="extraAttrBlock" style="display: none">
+                        <input type="text" id="attrKey" placeholder="Enter key for atttributes" style="width: 200px;" required>
+                        <input type="text" id="attrValue" placeholder="Enter value for attributes" style="width: 200px;" required>
+                        <button type="button" id="extraattribute" onclick="addextraAttr()" style="width: 15%; height: 80%;">Add</button>
+                    </div>
+                    <label for="deploy_only_windows">Deploy only:</label>
+                    <input type="radio" id="deploy_only_true_windows" name="deploy_only_windows" value="true">
+                    <label for="deploy_only_true">True</label>
+                    <input type="radio" id="deploy_only_false_windows" name="deploy_only_windows" value="false" checked>
+                    <label for="deploy_only_false">False</label>
+                    
+                    <br><br>
+                    <button id="startWindowsBuild" type="button" onclick="startWindowsBuild()">Start Build</button>
+                </div>
+                <div style="width: 50%; padding-left: 10px;">
+                    <!-- <h3>Right Section</h3> -->
+                    <h2>Build Payload:</h2>
+                    <textarea id="jsonOutput_windows" readonly class="json-output" style="
+                        width: 80%;
+                        height: 80%;
+                        font-weight: bold;
+                        font-family: 'PT Mono', monospace;
+                        border: 1px solid #ccc;
+                        border-radius: 5px;
+                        color: #333;
+                        background-color: #f9f9f9;
+                        padding: 10px;
+                        overflow: auto;
+                        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    "></textarea>
+                </div>
+            </div>
+            <hr></hr>
+            <article id="windowsOutput"></article>
+        </section>
+        <section id="Esxi" style="display: none;">  
+            <!-- <ul class="features"> -->
+                <div style="display: flex; justify-content: space-between;">
+                    <div style="width: 50%; padding-right: 10px;">
+                        <!-- <h3>Left Section</h3> -->
+                        <h2>ESXi Build Services</h2>
+                        <p>Enter the one host or multiple hosts names (comma separated) to start the Linux build.</p>
+                        <p>You can check the status of the build using the "My Build Requests" section.</p>
+                        <label for="host">Host or Hosts:</label>
+                        <input type="text" id="host_esxi" name="host" placeholder="Enter FQDN names (required)" value="abc.example.com" style="width: 50%;" required></input>
+                        <br><br>
+                        <label for="os">OS:</label>
+                        <select id="os_esxi" name="os" required style="width: auto;">
+                            <option value="" disabled selected>Select OS (required)</option>
+                            <option value="ESXi-7.0.3-23307199-HPE">ESXi-7.0.3-23307199-HPE</option>
+                            <option value="ESXi-8.0.2-23305546-HPE">ESXi-8.0.2-23305546-HPE</option>
+                            <option value="ESXi-8.0.3-24585383-HPE">ESXi-8.0.3-24585383-HPE</option>
+                            <option value="ESXi-8.0.3-24674464-HPE">ESXi-8.0.3-24674464-HPE</option>
+                            <option value="ESXi-8.0.3-24784735-HPE">ESXi-8.0.3-24784735-HPE</option>
+                            <option value="=======================" disabled>=======================</option>
+                            <option value="ESXi-7.0.3-23307199-DELL">ESXi-7.0.3-23307199-DELL</option>
+                            <option value="ESXi-8.0.2-23305546-Dell">ESXi-8.0.2-23305546-Dell</option>
+                            <option value="ESXi-8.0.3-24585383-Dell">ESXi-8.0.3-24585383-Dell</option>
+                            <option value="ESXi-8.0.3-24674464-Dell">ESXi-8.0.3-24674464-Dell</option>
+                            <option value="ESXi-8.0.3-24784735-Dell">ESXi-8.0.3-24784735-Dell</option>
+                        </select>
+                        <br><br>
+                        <label for="vlan">VLAN:</label>
+                        <input type="text" id="vlan_esxi" name="vlan" value="3020" placeholder="3020" style="width: 55px;" required></input>
+                        <br><br>
+                        <label for="deploy_only_esxi">Deploy Only:</label>
+                            <input type="radio" id="deploy_only_false_esxi" name="deploy_only_esxi" value="false" checked>
+                            <label for="deploy_only_false">False</label>
+                            <input type="radio" id="deploy_only_true_esxi" name="deploy_only_esxi" value="true">
+                            <label for="deploy_only_true">True</label>
+                        <br><br>
+                        <button id="startEsxiBuild" type="button" onclick="startEsxiBuild()">Start Build</button>
+                    </div>
+                    <div style="width: 50%; padding-left: 10px;">
+                        <!-- <h3>Right Section</h3> -->
+                        <h2>Build Payload:</h2>
+                        <textarea id="jsonOutput_esxi" readonly class="json-output" style="
+                            width: 80%;
+                            height: 80%;
+                            font-weight: bold;
+                            font-family: 'PT Mono', monospace;
+                            border: 1px solid #ccc;
+                            border-radius: 5px;
+                            color: #333;
+                            background-color: #f9f9f9;
+                            padding: 10px;
+                            overflow: auto;
+                            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                        "></textarea>
+                    </div>
+                </div>
+            <!-- </ul> -->
+             <hr></hr>
+            <article id="esxiOutput"></article>
+        </section>
+        <section id="baselinehpspp" style="display: none;">
+            <h2>Baseline HPE SPP Firmware update</h2>
+            <div style="display: flex; justify-content: space-between;">
+                <div style="width: 50%; padding-right: 10px;">
+                    <!-- <h3>Left Section</h3> -->
+                    <p>Enter the one host or multiple hosts names (comma separated) to start the Linux build.</p>
+                    <p>You can check the status of the build using the "My Build Requests" section.</p>
+                    <label for="host">Host or Hosts:</label>
+                    <input type="text" id="host_hp_spp" name="host" placeholder="Enter FQDN names (required)" value="abc.example.com" style="width: 80%;" required></input>
+                    <br><br>
+                    <button id="startSPP" type="button" onclick="baseline_hp_spp()">Apply SPP</button>
+                </div>
+            </div>
+            <hr></hr>
+            <article id="baselinehpsppOutput"></article>
+        </section>
+
+        <section id="BMOps" style="display: none;">
+            <h1>Bare Metal Operations Services</h1>
+            <p>Use the sidebar to navigate to the desired service.</p>
+        </section>
+        
+        <section id="eskm" style="display: none;">
+            <h2>ESKM Certificates Update on HPE iLO</h2>
+            <ul class="features">
+                <li><strong>Input Field:</strong> Enter the iLO names (FQDN) or IP addresses, separated by commas.</li>
+                <li><strong>File Upload:</strong> Upload a text file containing iLO names (FQDN) or IP addresses, each on a new line.</li>
+                <li><strong>Notes:</strong></li>
+                <ul>
+                    <li>Receive instant notifications on the success of your file upload</li>
+                    <li>The list from your uploaded file will be deplay before you can click patch eskm button</li>
+                    <li>If the input box has an entry, it will take priority over the file upload.</li>
+                    <li>To clear or restart click on ESKM menu again on left </li>
+                    <li>Current Limit is 100 host/server</li>
+                    <li>you can provide ilo username and password or it will use default BMI user creds</li>
+                </ul>
+            </ul>
+            <br> you can leave ilo user and password empty to use default BMI user creds
+            <p></p><label><b>HPE iLO user and password:</b></label>
+            <input id="ilouser" type="text" name="lomuser" placeholder="ilo user" style="width: 100px;">
+            <input  id="ilopass" type="password" name="lompass" placeholder="ilo password" required style="width: 100px;">
+            <p></p>
+            <label><b>HPE iLO:</b></label>
+            <input id="eskmHostInput" type="text" name="eskmHostInput" placeholder="ilo1, ilo2, ilo3" required style="width: 400px;">
+            <span>or</span>
+            <label for="fileUpload"><b>Upload File:</b></label>
+            <input type="file" id="eskmFileInput" name="eskmFileInput">
+            <button id="checkeskmButton" type="button" onclick="checkEskm()">Check ESKM</button>
+            <button id="patcheskmButton" type="button" onclick="patchEskm()">Patch ESKM</button> 
+            <hr>
+            <pre id="eskmOutput"></pre>
+        </section>
+        
+        <section id="adminlo" style="display: none;">
+            <h2>AdminLO account creds check/patch on HPE iLO or Dell iDRAC</h2>
+            <ul class="features">
+                <li><strong>Input Field:</strong> Enter the iLO/iDRAC FQDN or IP addresses, separated by commas.</li>
+                <li><strong>File Upload:</strong> Upload a text file containing iLO/iDRAC FQDN or IP addresses, each on a new line.</li>
+                <li><strong>Notes:</strong></li>
+                <ul>
+                    <li>Receive instant notifications on the success of your file upload</li>
+                    <li>The list from your uploaded file will be deplay before you can click patch eskm button</li>
+                    <li>If the input box has an entry, it will take priority over the file upload.</li>
+                    <li>To clear or restart click on AdminLO menu again on left </li>
+                    <li>you can provide ilo/idrac username and password or it will use default BMI user creds, only applies to Patch creds</li>
+                </ul>
+            </ul>
+            <p></p><label><b>iLO or iDRAC user and password:</b></label>
+            <input id="lomuser4adminlo" type="text"  name="lomuser" placeholder="user" required style="width: 100px;">
+            <input id="lompass4adminlo" type="password" name="lompass" placeholder="password" style="width: 100px;">  
+            <p></p>
+            <label><b>iLO or iDRAC:</b></label>
+            <input type="text" id="adminloHostInput" name="adminloHostInput" required style="width: 300px;">
+            <span>or</span>
+            <label for="fileUpload"><b>Upload File:</b></label>
+            <input type="file" id="adminloFileInput" name="adminloFileInput">
+            <button type="button" onclick="checkAdminLo()" >Check creds</button>
+            <button type="button" onclick="patch_add_AdminLo(add_account=false)" >Patch creds</button>
+            <button type="button" onclick="patch_add_AdminLo(add_account=true)" >Add Adminlo</button>
+            <button type="button" onclick="deleteAdminLo()" >Rm AdminLo</button>
+            <hr>
+            <pre id="adminloOutput"></pre>
+        </section>
+        <section id="esxiiso" style="display: none;">
+            <h2>ESXi ISO Upload</h2>
+            <p>Upload an ESXi ISO image to the BMI storage mount. The file will be stored in the <code>/pub/upload</code> directory.</p>
+            <form id="esxiIsoUploadForm" enctype="multipart/form-data">
+                <label for="file">Choose a file:</label>
+                <input type="file" id="esxiIsoFile" name="file" required>
+                <button type="submit">Upload</button>
+            </form>
+            <hr>
+            <article id="esxiIsoOutput"></article>
+        </section>
+        
+        <section id="networkdataForm" style="display: none;">
+            <h2>Data Services</h2>
+            <p>Enter the server or hostname to get the network data and server information.</p>
+            <ul class="features">
+                <label for="buildInput">Server or Hostname:</label>
+                <input type="text" id="host" name="buildInput" value="elr5hz1-01-s06.example.com" required style="width: 300px;">
+                <button type="button" onclick="ge_networkData()">NetworkData</button>
+                <button type="button" onclick="get_serverInfo()">ServerInfo</button>
+                <button type="button" onclick="get_lorandata()">Loran Data</button>
+                <button type="button" onclick="get_oneview_server()">Oneview</button>
+                <button type="button" onclick="get_firmware_report()">Firmware Report</button>
+            </ul>
+            <hr>
+            <article id="networkdataOutput"></article>
+        </section>
+
+        <section id="adminservicesForm" style="display: none;">
+            <h2 style="text-align: center;">Admin Services</h2>
+            <ul style="text-align: center;">
+                <li style="display: inline;"><button onclick="fetch_admin_ep('allqueued')">All Queued</button></li>
+                <li style="display: inline;"><button onclick="fetch_admin_ep('allprocessing')">All Processing</button></li>
+                <li style="display: inline;"><button onclick="fetch_admin_ep('allcompleted')">All Completed</button></li>
+                <li style="display: inline;"><button onclick="fetch_admin_ep('allerror')">All Error</button></li>
+                <li style="display: inline;"><button onclick="fetch_admin_ep('allaborted')">All Aborted</button></li>
+                <li style="display: inline;"><button id="health" onclick="showHealthStatus()">Health</button></li>
+                <li style="display: inline;"><button id="admin_builds_test" onclick="adminBuildsTest()">Build Test</button></li>
+            </ul>
+            <hr>
+            <article id="adminservicesOutput"></article>            
+        </section>
+
+        <section id="contactUs" style="display: none;">
+            <h2>Contact Us</h2>
+            <p>For any questions or issues, please contact us at:</p>
+            <p>For issues, please visit our <a href="https://github.example.com/example-org/ztp/issues" target="_blank">GitHub Issues Page</a>.</p>
+            <p>Created by: Chirag Patel</a></p>
+            <p>Supported by: example-org</p>
+            <ul>
+                <li>Chirag Patel</li>
+                <li>David Blasing</li>
+                <li>Darrick Waller</li>
+            </ul>
+        </section>
+    </main>
+    <!-- <footer>
+        <div>
+             <p id="creator">&copy; 2025 BMI User Interface | Created by Chirag Patel</p>
+        </div>
+    </footer> -->
+    <script src="/static/js/index.js?v=1.22" async defer></script>
+</body>
